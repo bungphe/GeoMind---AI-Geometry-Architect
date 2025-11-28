@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { Ruler, MousePointer2 } from 'lucide-react';
 import { GeometryScene, Point3D } from '../types';
 
 interface GeometryCanvasProps {
@@ -17,6 +18,11 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
   
   // Selection State
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  
+  // Measurement Tool State
+  const [isMeasurementMode, setIsMeasurementMode] = useState(false);
+  const [measurePoints, setMeasurePoints] = useState<string[]>([]);
+  
   const mouseDownPos = useRef({ x: 0, y: 0 });
 
   // 3D Projection Logic
@@ -43,6 +49,14 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
       scale: factor,
       zIndex: z
     };
+  };
+
+  const getDistance = (p1: Point3D, p2: Point3D) => {
+      return Math.sqrt(
+          Math.pow(p2.x - p1.x, 2) + 
+          Math.pow(p2.y - p1.y, 2) + 
+          Math.pow(p2.z - p1.z, 2)
+      );
   };
 
   const draw = () => {
@@ -164,6 +178,62 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
         }
     });
 
+    // --- Measurement Tool Drawing Layer ---
+    if (measurePoints.length > 0) {
+        const p1Data = scene.points.find(p => p.id === measurePoints[0]);
+        const p2Data = measurePoints.length > 1 ? scene.points.find(p => p.id === measurePoints[1]) : null;
+
+        const proj1 = p1Data ? projectedPoints.get(p1Data.id) : null;
+        const proj2 = p2Data ? projectedPoints.get(p2Data.id) : null;
+
+        // Draw Line between measurement points
+        if (proj1 && proj2 && p1Data && p2Data) {
+             ctx.beginPath();
+             ctx.moveTo(proj1.x, proj1.y);
+             ctx.lineTo(proj2.x, proj2.y);
+             ctx.strokeStyle = '#06b6d4'; // Cyan-500
+             ctx.setLineDash([4, 4]);
+             ctx.lineWidth = 2;
+             ctx.stroke();
+             ctx.setLineDash([]); // Reset dash
+
+             // Draw Distance Label at Midpoint
+             const midX = (proj1.x + proj2.x) / 2;
+             const midY = (proj1.y + proj2.y) / 2;
+             const dist = getDistance(p1Data, p2Data).toFixed(2);
+             
+             ctx.font = 'bold 12px Inter';
+             const textMetrics = ctx.measureText(dist);
+             const padding = 6;
+             
+             // Badge Background
+             ctx.fillStyle = '#083344'; // Cyan-950
+             ctx.fillRect(midX - textMetrics.width/2 - padding, midY - 10, textMetrics.width + padding*2, 20);
+             ctx.strokeStyle = '#06b6d4';
+             ctx.lineWidth = 1;
+             ctx.strokeRect(midX - textMetrics.width/2 - padding, midY - 10, textMetrics.width + padding*2, 20);
+             
+             // Badge Text
+             ctx.fillStyle = '#22d3ee'; // Cyan-400
+             ctx.textAlign = 'center';
+             ctx.textBaseline = 'middle';
+             ctx.fillText(dist, midX, midY);
+             ctx.textAlign = 'left';
+             ctx.textBaseline = 'alphabetic';
+        }
+
+        // Draw Measurement Highlights (Cyan Rings)
+        [proj1, proj2].forEach(proj => {
+            if (proj) {
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 10, 0, Math.PI * 2);
+                ctx.strokeStyle = '#22d3ee'; // Cyan-400
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        });
+    }
+
     // Draw Points
     let selectedProj = null;
     let selectedPointData = null;
@@ -171,16 +241,17 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
     scene.points.forEach(p => {
         const proj = projectedPoints.get(p.id);
         if (proj) {
-            // If this is the selected point, save it for drawing last (on top)
-            if (p.id === selectedPointId) {
+            // If this is the selected point (Normal Mode), save it for drawing last (on top)
+            if (p.id === selectedPointId && !isMeasurementMode) {
                 selectedProj = proj;
                 selectedPointData = p;
                 return; 
             }
 
+            // Standard Point
             ctx.beginPath();
             ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = '#facc15'; // Yellow dots
+            ctx.fillStyle = measurePoints.includes(p.id) ? '#22d3ee' : '#facc15'; // Cyan if measuring, else Yellow
             ctx.fill();
             
             // Labels
@@ -192,7 +263,7 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
         }
     });
 
-    // Draw Selected Point Highlight & Tooltip (Top Layer)
+    // Draw Selected Point Highlight & Tooltip (Top Layer - Normal Mode)
     if (selectedProj && selectedPointData) {
         const p = selectedPointData as Point3D;
         const proj = selectedProj;
@@ -283,7 +354,7 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
   // Render Loop
   useEffect(() => {
     requestAnimationFrame(draw);
-  }, [scene, rotation, scale, selectedPointId]);
+  }, [scene, rotation, scale, selectedPointId, measurePoints, isMeasurementMode]);
 
   // Event Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -330,9 +401,6 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
     // Hit Test logic
     let closestId: string | null = null;
     let minDist = 20; // Click radius threshold
-    
-    // Canvas dimensions inside the component might differ from client rect due to scaling/dpr
-    // but here we used clientWidth/Height for canvas.width/height, so they match 1:1 CSS pixels.
     const w = canvas.width;
     const h = canvas.height;
     
@@ -348,11 +416,37 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
         }
     });
     
-    setSelectedPointId(closestId); // Select or deselect
+    if (closestId) {
+        if (isMeasurementMode) {
+            setMeasurePoints(prev => {
+                // If we already have 2 points, clicking a 3rd resets the selection to just the new one
+                if (prev.length === 2) return [closestId];
+                // Prevent adding same point twice
+                if (prev.includes(closestId)) return prev;
+                return [...prev, closestId];
+            });
+        } else {
+            setSelectedPointId(closestId);
+        }
+    } else {
+        // Clicked empty space
+        if (!isMeasurementMode) {
+            setSelectedPointId(null);
+        }
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
     setScale(prev => Math.max(20, Math.min(500, prev - e.deltaY * 0.1)));
+  };
+
+  const toggleMeasurementMode = () => {
+      const newMode = !isMeasurementMode;
+      setIsMeasurementMode(newMode);
+      setMeasurePoints([]); // Reset points when toggling
+      if (newMode) {
+          setSelectedPointId(null); // Clear normal selection when entering measure mode
+      }
   };
 
   return (
@@ -368,17 +462,50 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
       <canvas ref={canvasRef} className="block w-full h-full" />
       
       {/* Overlay Controls Info */}
-      <div className="absolute top-4 left-4 bg-slate-800/80 backdrop-blur text-xs text-slate-300 p-3 rounded-lg border border-slate-700 shadow-xl pointer-events-none">
-        <h3 className="font-bold text-blue-400 mb-1">CONTROLS</h3>
-        <div className="flex items-center gap-2 mb-1">
-            <span className="w-4 text-center">🖱️</span> <span>Left Click + Drag to Rotate</span>
-        </div>
-        <div className="flex items-center gap-2 mb-1">
-            <span className="w-4 text-center">📜</span> <span>Scroll to Zoom</span>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-4 text-center">👆</span> <span>Click point for details</span>
-        </div>
+      <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
+          {/* Instructions Panel */}
+          <div className="bg-slate-800/80 backdrop-blur text-xs text-slate-300 p-3 rounded-lg border border-slate-700 shadow-xl">
+            <h3 className="font-bold text-blue-400 mb-1">CONTROLS</h3>
+            <div className="flex items-center gap-2 mb-1">
+                <span className="w-4 text-center">🖱️</span> <span>Left Click + Drag to Rotate</span>
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+                <span className="w-4 text-center">📜</span> <span>Scroll to Zoom</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="w-4 text-center">👆</span> <span>Click point for details</span>
+            </div>
+          </div>
+
+          {/* Tools Panel (Interactive) */}
+          <div className="bg-slate-800/80 backdrop-blur p-1.5 rounded-lg border border-slate-700 shadow-xl self-start pointer-events-auto flex gap-1">
+            <button 
+                onClick={() => {
+                    setIsMeasurementMode(false);
+                    setMeasurePoints([]);
+                    setSelectedPointId(null);
+                }}
+                className={`p-2 rounded transition-colors ${!isMeasurementMode ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                title="Select Mode"
+            >
+                <MousePointer2 size={16} />
+            </button>
+            <button 
+                onClick={toggleMeasurementMode}
+                className={`p-2 rounded transition-colors ${isMeasurementMode ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                title="Measure Distance"
+            >
+                <Ruler size={16} />
+            </button>
+          </div>
+          
+          {/* Active Tool Instruction */}
+          {isMeasurementMode && (
+              <div className="bg-cyan-950/80 backdrop-blur text-xs text-cyan-200 px-3 py-2 rounded-lg border border-cyan-800 shadow-xl self-start animate-in fade-in slide-in-from-left-2">
+                Select 2 points to measure distance
+                {measurePoints.length > 0 && ` (${measurePoints.length}/2 selected)`}
+              </div>
+          )}
       </div>
 
       {/* Axis Helper (Bottom Right) */}
