@@ -1,3 +1,4 @@
+
 export interface Point3D {
   id: string;
   x: number;
@@ -29,4 +30,12 @@ export interface Message {
 export interface GeminiResponse {
   explanation: string;
   geometry?: GeometryScene;
+}
+
+export interface SavedSession {
+  id: string;
+  name: string;
+  date: number;
+  messages: Message[];
+  scene: GeometryScene;
 }

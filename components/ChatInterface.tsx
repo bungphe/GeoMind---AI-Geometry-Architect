@@ -1,14 +1,25 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Sparkles, Box } from 'lucide-react';
+import { Send, Loader2, Sparkles, Box, Trash2, Save, History } from 'lucide-react';
 import { Message } from '../types';
 
 interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (text: string) => void;
   isLoading: boolean;
+  onReset: () => void;
+  onSave: () => void;
+  onLoad: () => void;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, onSendMessage, isLoading }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  messages, 
+  onSendMessage, 
+  isLoading,
+  onReset,
+  onSave,
+  onLoad
+}) => {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -28,15 +39,39 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, onSendMessage, 
   return (
     <div className="flex flex-col h-full bg-[#1e293b] border-r border-slate-700 w-[400px] flex-shrink-0 relative z-10 shadow-2xl">
       {/* Header */}
-      <div className="h-16 border-b border-slate-700 flex items-center px-6 bg-slate-900/50 backdrop-blur-sm">
+      <div className="h-16 border-b border-slate-700 flex items-center justify-between px-6 bg-slate-900/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-600 rounded-lg">
             <Box size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-white text-lg leading-tight">GeoMind</h1>
-            <p className="text-xs text-blue-300 font-medium">Gemini 3 Pro • Thinking Mode</p>
+            <h1 className="font-bold text-white text-lg leading-tight">GeoMind</h1> 
           </div>
+        </div>
+        
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1">
+            <button 
+                onClick={onLoad}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                title="History & Saved Sessions"
+            >
+                <History size={18} />
+            </button>
+            <button 
+                onClick={onSave}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                title="Save Session"
+            >
+                <Save size={18} />
+            </button>
+            <button 
+                onClick={onReset}
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors"
+                title="Reset Workspace"
+            >
+                <Trash2 size={18} />
+            </button>
         </div>
       </div>
 
