@@ -1,0 +1,5 @@
+{
+  "name": "GeoMind - AI Geometry Architect",
+  "description": "An intelligent 3D geometry visualization assistant powered by Gemini 3 Pro. Chat with the AI to generate, analyze, and render complex 3D geometric shapes in real-time.",
+  "requestFramePermissions": []
+}
