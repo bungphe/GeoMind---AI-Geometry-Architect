@@ -197,45 +197,85 @@ const GeometryCanvas: React.FC<GeometryCanvasProps> = ({ scene }) => {
         const p = selectedPointData as Point3D;
         const proj = selectedProj;
 
-        // Highlight Glow
+        // 1. Outer Glow (Gradient)
+        const glowRadius = 14;
+        const gradient = ctx.createRadialGradient(proj.x, proj.y, 4, proj.x, proj.y, glowRadius);
+        gradient.addColorStop(0, 'rgba(236, 72, 153, 0.6)'); // Pink-500
+        gradient.addColorStop(1, 'rgba(236, 72, 153, 0)');
+        
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, glowRadius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // 2. Selection Ring
         ctx.beginPath();
         ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.3)'; // Blue glow
-        ctx.fill();
-        ctx.strokeStyle = '#38bdf8'; // Blue stroke
+        ctx.strokeStyle = '#f472b6'; // Pink-400
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Center dot
+        // 3. Inner Dot (Distinct from yellow points)
         ctx.beginPath();
-        ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#38bdf8'; 
+        ctx.arc(proj.x, proj.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#db2777'; // Pink-600
         ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
-        // Tooltip Background
+        // 4. Tooltip Configuration
         const labelText = `${p.label || p.id}: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`;
-        ctx.font = 'bold 12px Inter';
+        ctx.font = '600 13px Inter'; // Semi-bold
         const textMetrics = ctx.measureText(labelText);
         const textWidth = textMetrics.width;
-        const padding = 6;
-        const boxHeight = 24;
-        const boxX = proj.x + 14;
-        const boxY = proj.y - 12;
+        const paddingX = 10;
+        const paddingY = 8;
+        const boxHeight = 32;
+        
+        // Offset tooltip
+        const offsetDist = 20;
+        const boxX = proj.x + offsetDist;
+        const boxY = proj.y - offsetDist - boxHeight / 2;
 
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)'; // Dark slate bg
+        // Connecting Leader Line
         ctx.beginPath();
-        ctx.roundRect(boxX, boxY, textWidth + padding * 2, boxHeight, 4);
+        ctx.moveTo(proj.x + 6, proj.y - 6); // Edge of outer ring
+        ctx.lineTo(boxX, boxY + boxHeight / 2); // To box
+        ctx.strokeStyle = '#f472b6';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Tooltip Shadow
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+
+        // Tooltip Background
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.95)'; // Slate-800
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(boxX, boxY, textWidth + paddingX * 2, boxHeight, 6);
+        } else {
+            ctx.rect(boxX, boxY, textWidth + paddingX * 2, boxHeight);
+        }
         ctx.fill();
-        ctx.strokeStyle = '#38bdf8';
+        ctx.restore(); // Clear shadow for stroke/text
+
+        // Tooltip Border
+        ctx.strokeStyle = '#f472b6';
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // Tooltip Text
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = '#fff';
         ctx.textBaseline = 'middle';
-        ctx.fillText(labelText, boxX + padding, boxY + boxHeight / 2);
+        ctx.textAlign = 'left';
+        ctx.fillText(labelText, boxX + paddingX, boxY + boxHeight / 2);
         
-        // Reset defaults
+        // Cleanup
         ctx.textBaseline = 'alphabetic';
     }
   };
